@@ -1,0 +1,65 @@
+import tensorflow as tf
+import numpy as np
+import matplotlib.pyplot as plt
+
+# Define the differential equation dy/dx = f(x, y)
+def f(x, y):
+    return y - tf.sin(x)
+
+# Define the true solution for comparison (if known)
+def true_solution(x):
+    return np.sin(x) + (np.exp(x) - np.exp(-x))/2
+
+# Define the neural network model
+class NeuralNetwork(tf.keras.Model):
+    def __init__(self):
+        super(NeuralNetwork, self).__init__()
+        self.hidden1 = tf.keras.layers.Dense(50, activation='tanh')
+        self.hidden2 = tf.keras.layers.Dense(50, activation='tanh')
+        self.output_layer = tf.keras.layers.Dense(1)
+
+    def call(self, x):
+        x = self.hidden1(x)
+        x = self.hidden2(x)
+        return self.output_layer(x)
+
+# Loss function to train the neural network
+def loss(model, x):
+    with tf.GradientTape() as tape:
+        tape.watch(x)
+        y_pred = model(x)
+        dy_dx = tape.gradient(y_pred, x)
+        equation = dy_dx - f(x, y_pred)
+    return tf.reduce_mean(tf.square(equation))
+
+# Training the model
+def train(model, x_train, epochs, learning_rate):
+    optimizer = tf.keras.optimizers.Adam(learning_rate)
+    for epoch in range(epochs):
+        with tf.GradientTape() as tape:
+            current_loss = loss(model, x_train)
+        grads = tape.gradient(current_loss, model.trainable_variables)
+        optimizer.apply_gradients(zip(grads, model.trainable_variables))
+        if epoch % 100 == 0:
+            print(f"Epoch {epoch}: Loss: {current_loss.numpy()}")
+
+# Initial conditions and domain
+x_train = tf.convert_to_tensor(np.linspace(0, 10, 100).reshape(-1, 1), dtype=tf.float32)
+
+# Initialize and train the model
+model = NeuralNetwork()
+train(model, x_train, epochs=1000, learning_rate=0.001)
+
+# Predictions
+x_test = tf.convert_to_tensor(np.linspace(0, 10, 100).reshape(-1, 1), dtype=tf.float32)
+y_pred = model(x_test)
+
+# Plot the results
+x_test_np = x_test.numpy().flatten()
+y_pred_np = y_pred.numpy().flatten()
+y_true = true_solution(x_test_np)
+
+plt.plot(x_test_np, y_pred_np, label='Predicted')
+plt.plot(x_test_np, y_true, label='True Solution')
+plt.legend()
+plt.show()
